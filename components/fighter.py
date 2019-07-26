@@ -13,8 +13,9 @@ class Fighter:
 
     def take_damage(self, amount):
         results = []
-        self.hp -= max(amount, 0)
+        self.hp -= amount
         if self.hp <= 0:
+            self.hp = 0
             results.append({'dead': self.owner, 'xp': self.xp})
 
         return results
