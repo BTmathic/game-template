@@ -10,7 +10,7 @@ class Inventory:
 
     def add_item(self, item):
         results = []
-        if len(self.items) > self.capacity:
+        if len(self.items) >= self.capacity:
             results.append({
                 'item_added': None,
                 'message': Message('Your bag is full!', libtcod.yellow)

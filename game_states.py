@@ -1,4 +1,4 @@
-from enum import Enum, auto
+from enum import auto, Enum
 
 
 class GameStates(Enum):
@@ -8,3 +8,5 @@ class GameStates(Enum):
     SHOW_INVENTORY = auto()
     THROW_INVENTORY = auto()
     TARGETING = auto()
+    LEVEL_UP = auto()
+    CHARACTER_SCREEN = auto()

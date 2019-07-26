@@ -63,10 +63,14 @@ def play_game(player, entities, game_map, message_log, game_state, con, panel, c
         action = handle_keys(key, game_state)
         mouse_action = handle_mouse(mouse)
         move = action.get('move')
+        wait = action.get('wait')
         pickup = action.get('pickup')
         show_inventory = action.get('show_inventory')
         throw_inventory = action.get('throw_inventory')
         inventory_index = action.get('inventory_index')
+        take_stairs = action.get('take_stairs')
+        level_up = action.get('level_up')
+        show_character_screen = action.get('show_character_screen')
         exit = action.get('exit')
         fullscreen = action.get('fullscreen')
 
@@ -89,6 +93,9 @@ def play_game(player, entities, game_map, message_log, game_state, con, panel, c
                     fov_recompute = True
 
                 game_state = GameStates.ENEMY_TURN
+
+        elif wait:
+            game_state == GameStates.ENEMY_TURN
 
         elif pickup and game_state == GameStates.PLAYERS_TURN:
             for entity in entities:
@@ -117,6 +124,33 @@ def play_game(player, entities, game_map, message_log, game_state, con, panel, c
             elif game_state == GameStates.THROW_INVENTORY:
                 player_turn_results.extend(player.inventory.throw_item(item))
 
+        if take_stairs and game_state == GameStates.PLAYERS_TURN:
+            for entity in entities:
+                if entity.stairs and entity.x == player.x and entity.y == player.y:
+                    entities = game_map.next_floor(player, message_log, constants)
+                    fov_map = initialize_fov(game_map)
+                    fov_recompute = True
+                    libtcod.console_clear(con)
+
+                    break
+            else:
+                message_log.add_message(Message('There are no stairs here', libtcod.yellow))
+
+        if level_up:
+            if level_up == 'hp':
+                player.fighter.max_hp += 20
+                player.fighter.hp += 20
+            elif level_up == 'str':
+                player.fighter.power += 1
+            elif level_up == 'def':
+                player.fighter.defense += 1
+
+            game_state = previous_game_state
+
+        if show_character_screen:
+            previous_game_state = game_state
+            game_state = GameStates.CHARACTER_SCREEN
+
         if game_state == GameStates.TARGETING:
             if left_click:
                 target_x, target_y = left_click
@@ -127,7 +161,7 @@ def play_game(player, entities, game_map, message_log, game_state, con, panel, c
                 player_turn_results.append({'targeting_cancelled': True})
 
         if exit:
-            if game_state in (GameStates.SHOW_INVENTORY, GameStates.THROW_INVENTORY):
+            if game_state in (GameStates.SHOW_INVENTORY, GameStates.THROW_INVENTORY, GameStates.CHARACTER_SCREEN):
                 game_state = previous_game_state
             elif game_state == GameStates.TARGETING:
                 player_turn_results.append({'targeting_cancelled': True})
@@ -147,13 +181,10 @@ def play_game(player, entities, game_map, message_log, game_state, con, panel, c
             item_thrown = player_turn_result.get('item_thrown')
             targeting = player_turn_result.get('targeting')
             targeting_cancelled = player_turn_result.get('targeting_cancelled')
+            xp = player_turn_result.get('xp')
 
             if message:
                 message_log.add_message(message)
-
-            if targeting_cancelled:
-                game_state = previous_game_state
-                message_log.add_message(Message('Targeting cancelled'))
 
             if dead_entity:
                 if dead_entity == player:
@@ -170,15 +201,32 @@ def play_game(player, entities, game_map, message_log, game_state, con, panel, c
             if item_consumed:
                 game_state = GameStates.ENEMY_TURN
 
+            if item_thrown:
+                entities.append(item_thrown)
+                game_state = GameStates.ENEMY_TURN
+
             if targeting:
                 previous_game_state = GameStates.PLAYERS_TURN
                 game_state = GameStates.TARGETING
                 targeting_item = targeting
                 message_log.add_message(targeting_item.item.targeting_message)
 
-            if item_thrown:
-                entities.append(item_thrown)
-                game_state = GameStates.ENEMY_TURN
+            if targeting_cancelled:
+                game_state = previous_game_state
+                message_log.add_message(Message('Targeting cancelled'))
+
+            if xp:
+                leveled_up = player.level.add_xp(xp)
+                message_log.add_message(Message('You gain {0} experience!'.format(xp)))
+
+                if leveled_up:
+                    message_log.add_message((Message(
+                        'Your battle skills grow stronger! You reach level {0}'.format(
+                            player.level.current_level) + '!', libtcod.yellow
+                        )
+                    ))
+                    previous_game_state = game_state
+                    game_state = GameStates.LEVEL_UP
 
         if game_state == GameStates.ENEMY_TURN:
             for entity in entities:
@@ -212,7 +260,7 @@ def main():
     constants = get_constants()
 
     libtcod.console_set_custom_font('arial10x10.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD)
-    libtcod.console_init_root(constants['screen_width'], constants['screen_height'], 'libtcod tutorial revised', False)
+    libtcod.console_init_root(constants['screen_width'], constants['screen_height'], constants['window_title'], False)
     con = libtcod.console_new(constants['screen_width'], constants['screen_height'])
     panel = libtcod.console_new(constants['screen_width'], constants['panel_height'])
 
@@ -225,7 +273,7 @@ def main():
     show_main_menu = True
     show_load_error_message = False
 
-    main_menu_background_image = libtcod.image_load('menu_background/png')
+    main_menu_background_image = libtcod.image_load('menu_background.png')
 
     key = libtcod.Key()
     mouse = libtcod.Mouse()
